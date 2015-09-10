@@ -6,21 +6,18 @@ pom.xml.next
 release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
-target/
 *.class
 *~
 *.swp
 *.iml
 .idea/
 .DS_Store
-<<<<<<< HEAD
 home/
 out/
-=======
 data/
 temp/
 cfg/
->>>>>>> 08b15034d1bdb42cc1d7c07d546d215430916b5d
+
 
 # Eclipse
 /.project
