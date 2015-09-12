@@ -1,17 +1,26 @@
-*.class
-*.log
-
-# sbt specific
-.cache
-.history
-.lib/
-dist/*
 target/
-lib_managed/
-src_managed/
-project/boot/
-project/plugins/project/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+*.class
+*~
+*.swp
+*.iml
+.idea/
+.DS_Store
+home/
+out/
+data/
+temp/
+cfg/
 
-# Scala-IDE specific
-.scala_dependencies
-.worksheet
+
+# Eclipse
+/.project
+/.settings
+/.classpath
+/.cache

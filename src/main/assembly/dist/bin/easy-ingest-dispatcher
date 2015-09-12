@@ -1,0 +1,4 @@
+#!/bin/bash
+
+java -Dlogback.configurationFile=$EASY_INGEST_DISPATCHER_HOME/cfg/logback.xml \
+     -jar $EASY_INGEST_DISPATCHER_HOME/bin/easy-ingest-dispatcher.jar $@
