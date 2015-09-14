@@ -9,6 +9,7 @@ import org.apache.commons.configuration.PropertiesConfiguration
 import org.eclipse.jgit.api.Git
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
+import rx.lang.scala.subjects.PublishSubject
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -27,58 +28,83 @@ object EasyIngestDispatcher {
       refreshDelay = 5 seconds,
       fedoraCredentials = new FedoraCredentials("http://deasy:8080/fedora", "fedoraAdmin", "fedoraAdmin"))
 
-    run
-      .doOnError(e => log.error("Error while running ingest-flow", e))
-      .retry
-      .subscribe(x => x, _.printStackTrace(), () => println("DONE"))
+    val cancelStream = PublishSubject[Unit]()
+    val jobs = run(cancelStream).publish
 
-    println(s"Started monitoring deposits in: ${s.bagsFolder.getPath}")
+    val subscription =
+      jobs
+        .doOnError(e => log.error("Error while running ingest-flow", e))
+        .retry
+        .doOnCompleted(println("DDOOONNNNNEEEEEE"))
+        .subscribe(depositId => log.info(s"Finished processing deposit $depositId"))
+
+    jobs.connect
+
+    log.info(s"Started monitoring deposits in: ${s.bagsFolder.getPath}")
     readLine()
+
+    cancelStream.onNext(Unit)
+    log.info("Stopped monitoring stream, waiting for all jobs to finish")
+    if (subscription.isUnsubscribed) {
+      log.info(">>>>>>>>>>>>>>>>>>>>>>>>>>> " + jobs.toBlocking.lastOption)
+    }
+
+    log.info("Done, it's safe to terminate now")
   }
 
-  def run(implicit s: Settings): Observable[Unit] = {
+  def run(cancelStream: Observable[Unit])(implicit s: Settings): Observable[String] = {
     Observable.interval(s.refreshDelay)
+      .takeUntil(cancelStream)
       .onBackpressureDrop
-      .scan(List[File]()) ((processedBags, t) => dispatchUnprocessedBags(processedBags).get)
-      .map(_ => ())
+      .scan(List[File]()) ((processedBags, _) => processedBags ++ dispatchUnprocessedBags(processedBags).get)
+      .doOnEach(x => log.warn(s"BAGZZZ: $x"))
+      .flatMapIterable(_.map(_.getName))
   }
 
   def dispatchUnprocessedBags(processedBags: List[File])(implicit s: Settings): Try[List[File]] = {
     val bags = s.bagsFolder.listFiles().toList
     bags.diff(processedBags)
       .filter(isBagReadyForIngest)
-      .map(bag => findBagitRoot(bag).get)
-      .map(bag => {
-        log.info(s"Dispatching ingest-flow for: ${bag.getName}")
-        val homeDir = new File(System.getenv("EASY_INGEST_DISPATCHER_HOME"))
-        val props = new PropertiesConfiguration(new File(homeDir, "cfg/application.properties"))
-          implicit val settings = EasyIngestFlow.Settings(
-            storageUser = props.getString("storage.user"),
-            storagePassword = props.getString("storage.password"),
-            storageServiceUrl = new URL(props.getString("storage.service-url")),
-            fedoraCredentials = new FedoraCredentials(
-              props.getString("fcrepo.url"),
-              props.getString("fcrepo.user"),
-              props.getString("fcrepo.password")),
-            numSyncTries = props.getInt("sync.num-tries"),
-            syncDelay = props.getInt("sync.delay"),
-            ownerId = props.getString("easy.owner"),
-            bagStorageLocation = props.getString("storage.base-url"),
-            bagitDir = bag,
-            sdoSetDir = new File(props.getString("staging.root-dir"), bag.getName),
-            DOI = "10.1000/xyz123", // TODO: get this from the deposit metadata
-            postgresURL = props.getString("fsrdb.connection-url"),
-            solr = props.getString("solr.update-url"),
-            pidgen = props.getString("pid-generator.url"))
-        EasyIngestFlow.run() })
+      .map(dispatchIngestFlow)
       .sequence
-      .map(_ => bags)
+  }
+
+  def dispatchIngestFlow(bag: File): Try[File] = {
+    log.info(s"Dispatching ingest-flow for: ${bag.getName}")
+    for {
+      bagRoot <- findBagitRoot(bag)
+      settings = getIngestFlowSettings(bagRoot)
+      _ <- EasyIngestFlow.run()(settings)
+    } yield bag
   }
 
   def isBagReadyForIngest(bag: File): Boolean = try {
-    bag.exists() && Git.open(bag).tagList().call().size() == 1
+    bag.exists() && bag.isDirectory && Git.open(bag).tagList().call().size() == 1
   } catch {
     case _: Throwable => false
+  }
+
+  def getIngestFlowSettings(bag: File): EasyIngestFlow.Settings = {
+    val homeDir = new File(System.getenv("EASY_INGEST_DISPATCHER_HOME"))
+    val props = new PropertiesConfiguration(new File(homeDir, "cfg/application.properties"))
+    EasyIngestFlow.Settings(
+      storageUser = props.getString("storage.user"),
+      storagePassword = props.getString("storage.password"),
+      storageServiceUrl = new URL(props.getString("storage.service-url")),
+      fedoraCredentials = new FedoraCredentials(
+        props.getString("fcrepo.url"),
+        props.getString("fcrepo.user"),
+        props.getString("fcrepo.password")),
+      numSyncTries = props.getInt("sync.num-tries"),
+      syncDelay = props.getInt("sync.delay"),
+      ownerId = props.getString("easy.owner"),
+      bagStorageLocation = props.getString("storage.base-url"),
+      bagitDir = bag,
+      sdoSetDir = new File(props.getString("staging.root-dir"), bag.getName),
+      DOI = "10.1000/xyz123", // TODO: get this from the deposit metadata
+      postgresURL = props.getString("fsrdb.connection-url"),
+      solr = props.getString("solr.update-url"),
+      pidgen = props.getString("pid-generator.url"))
   }
 
   @tailrec
