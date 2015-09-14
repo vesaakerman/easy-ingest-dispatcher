@@ -17,6 +17,7 @@ out/
 data/
 temp/
 cfg/
+staging/
 
 
 # Eclipse
