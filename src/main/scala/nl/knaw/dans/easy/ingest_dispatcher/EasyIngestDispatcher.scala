@@ -2,6 +2,7 @@ package nl.knaw.dans.easy.ingest_dispatcher
 
 import java.io.File
 import java.net.URL
+import java.util.concurrent.TimeUnit
 
 import com.yourmediashelf.fedora.client.FedoraCredentials
 import nl.knaw.dans.easy.ingest_flow.EasyIngestFlow
@@ -16,19 +17,21 @@ import scala.io.StdIn.readLine
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
-case class Settings(bagsFolder: File, refreshDelay: Duration, fedoraCredentials: FedoraCredentials)
+case class Settings(depositsDir: File, refreshDelay: Duration)
 
 object EasyIngestDispatcher {
   val log = LoggerFactory.getLogger(getClass)
+
+  val homeDir = new File(System.getenv("EASY_INGEST_DISPATCHER_HOME"))
+  val props = new PropertiesConfiguration(new File(homeDir, "cfg/application.properties"))
 
   private var stopTriggered = false
   private var safeToTerminate = false
 
   def main(args: Array[String]) {
     implicit val s = Settings(
-      bagsFolder = new File("/Users/georgik/git/service/easy/easy-deposit/data"),
-      refreshDelay = 5 seconds,
-      fedoraCredentials = new FedoraCredentials("http://deasy:8080/fedora", "fedoraAdmin", "fedoraAdmin"))
+      depositsDir = new File(props.getString("deposits-dir")),
+      refreshDelay = Duration(props.getInt("refresh-delay"), TimeUnit.MILLISECONDS))
 
     jobMonitoringStream
       .doOnError(e => log.error("Error while running ingest-flow", e))
@@ -38,7 +41,7 @@ object EasyIngestDispatcher {
         safeToTerminate = true }
       .subscribe(depositId => log.info(s"Finished processing deposit $depositId"))
 
-    log.info(s"Started monitoring deposits in: ${s.bagsFolder.getPath}")
+    log.info(s"Started monitoring deposits in: ${s.depositsDir.getPath}")
     readLine()
     log.info("Stopping monitoring stream, waiting for all jobs to finish")
 
@@ -60,31 +63,29 @@ object EasyIngestDispatcher {
   }
 
   def dispatchUnprocessedBags(processedBags: List[File])(implicit s: Settings): Try[List[File]] = {
-    val bags = s.bagsFolder.listFiles().toList
+    val bags = s.depositsDir.listFiles().toList
     bags.diff(processedBags)
-      .filter(isBagReadyForIngest)
+      .filter(isDepositReadyForIngest)
       .map(dispatchIngestFlow)
       .sequence
   }
 
-  def dispatchIngestFlow(bag: File): Try[File] = {
-    log.info(s"Dispatching ingest-flow for: ${bag.getName}")
+  def dispatchIngestFlow(deposit: File): Try[File] = {
+    log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
     for {
-      bagRoot <- findBagitRoot(bag)
+      bagRoot <- findBagitRoot(deposit)
       settings = getIngestFlowSettings(bagRoot)
       _ <- EasyIngestFlow.run()(settings)
-    } yield bag
+    } yield deposit
   }
 
-  def isBagReadyForIngest(bag: File): Boolean = try {
-    bag.exists() && bag.isDirectory && Git.open(bag).tagList().call().size() == 1
+  def isDepositReadyForIngest(deposit: File): Boolean = try {
+    deposit.exists() && deposit.isDirectory && Git.open(deposit).tagList().call().size() == 1
   } catch {
     case _: Throwable => false
   }
 
-  def getIngestFlowSettings(bag: File): EasyIngestFlow.Settings = {
-    val homeDir = new File(System.getenv("EASY_INGEST_DISPATCHER_HOME"))
-    val props = new PropertiesConfiguration(new File(homeDir, "cfg/application.properties"))
+  def getIngestFlowSettings(deposit: File): EasyIngestFlow.Settings = {
     EasyIngestFlow.Settings(
       storageUser = props.getString("storage.user"),
       storagePassword = props.getString("storage.password"),
@@ -97,8 +98,8 @@ object EasyIngestDispatcher {
       syncDelay = props.getInt("sync.delay"),
       ownerId = props.getString("easy.owner"),
       bagStorageLocation = props.getString("storage.base-url"),
-      bagitDir = bag,
-      sdoSetDir = new File(props.getString("staging.root-dir"), bag.getName),
+      bagitDir = deposit,
+      sdoSetDir = new File(props.getString("staging.root-dir"), deposit.getName),
       DOI = "10.1000/xyz123", // TODO: get this from the deposit metadata
       postgresURL = props.getString("fsrdb.connection-url"),
       solr = props.getString("solr.update-url"),
