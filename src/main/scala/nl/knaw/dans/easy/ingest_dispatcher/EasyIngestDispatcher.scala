@@ -9,7 +9,6 @@ import org.apache.commons.configuration.PropertiesConfiguration
 import org.eclipse.jgit.api.Git
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
-import rx.lang.scala.subjects.PublishSubject
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -22,43 +21,42 @@ case class Settings(bagsFolder: File, refreshDelay: Duration, fedoraCredentials:
 object EasyIngestDispatcher {
   val log = LoggerFactory.getLogger(getClass)
 
+  private var stopTriggered = false
+  private var safeToTerminate = false
+
   def main(args: Array[String]) {
     implicit val s = Settings(
       bagsFolder = new File("/Users/georgik/git/service/easy/easy-deposit/data"),
       refreshDelay = 5 seconds,
       fedoraCredentials = new FedoraCredentials("http://deasy:8080/fedora", "fedoraAdmin", "fedoraAdmin"))
 
-    val cancelStream = PublishSubject[Unit]()
-    val jobs = run(cancelStream).publish
-
-    val subscription =
-      jobs
-        .doOnError(e => log.error("Error while running ingest-flow", e))
-        .retry
-        .doOnCompleted(println("DDOOONNNNNEEEEEE"))
-        .subscribe(depositId => log.info(s"Finished processing deposit $depositId"))
-
-    jobs.connect
+    jobMonitoringStream
+      .doOnError(e => log.error("Error while running ingest-flow", e))
+      .retry
+      .doOnCompleted {
+        log.info("Done, it's safe to terminate now. Please wait for termination...")
+        safeToTerminate = true }
+      .subscribe(depositId => log.info(s"Finished processing deposit $depositId"))
 
     log.info(s"Started monitoring deposits in: ${s.bagsFolder.getPath}")
     readLine()
+    log.info("Stopping monitoring stream, waiting for all jobs to finish")
 
-    cancelStream.onNext(Unit)
-    log.info("Stopped monitoring stream, waiting for all jobs to finish")
-    if (subscription.isUnsubscribed) {
-      log.info(">>>>>>>>>>>>>>>>>>>>>>>>>>> " + jobs.toBlocking.lastOption)
+    stopTriggered = true
+
+    while (!safeToTerminate) {
+      Thread.sleep(s.refreshDelay.toMillis)
     }
-
-    log.info("Done, it's safe to terminate now")
   }
 
-  def run(cancelStream: Observable[Unit])(implicit s: Settings): Observable[String] = {
+  def jobMonitoringStream(implicit s: Settings): Observable[String] = {
     Observable.interval(s.refreshDelay)
-      .takeUntil(cancelStream)
       .onBackpressureDrop
+      .takeWhile(_ => !stopTriggered)
+      .sample(s.refreshDelay)
       .scan(List[File]()) ((processedBags, _) => processedBags ++ dispatchUnprocessedBags(processedBags).get)
-      .doOnEach(x => log.warn(s"BAGZZZ: $x"))
       .flatMapIterable(_.map(_.getName))
+      .distinct
   }
 
   def dispatchUnprocessedBags(processedBags: List[File])(implicit s: Settings): Try[List[File]] = {
