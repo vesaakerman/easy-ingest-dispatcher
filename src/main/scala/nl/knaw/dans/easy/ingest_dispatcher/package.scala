@@ -1,10 +1,11 @@
 package nl.knaw.dans.easy
 
+import org.apache.commons.lang.exception.ExceptionUtils._
 import scala.util.{Success, Failure, Try}
 
 package object ingest_dispatcher {
-  class CompositeException(throwables: List[Throwable])
-    extends RuntimeException(throwables.foldLeft("")((msg, t) => s"${msg}*** ERROR:\n${t.getMessage}\n${t.getStackTrace.mkString("\n")}"))
+
+  private class CompositeException(throwables: List[Throwable]) extends RuntimeException(throwables.foldLeft("")((msg, t) => s"$msg\n${getMessage(t)} ${getStackTrace(t)}"))
 
   implicit class ListTryExtensions[T](xs: List[Try[T]]) {
     def sequence: Try[List[T]] =
