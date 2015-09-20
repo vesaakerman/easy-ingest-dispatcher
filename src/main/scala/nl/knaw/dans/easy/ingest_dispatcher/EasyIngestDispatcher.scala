@@ -74,7 +74,7 @@ object EasyIngestDispatcher {
     log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
     for {
       bagRoot <- findBagitRoot(deposit)
-      settings = getIngestFlowSettings(bagRoot)
+      settings = getIngestFlowSettings(deposit)
       _ <- EasyIngestFlow.run()(settings)
     } yield deposit
   }
@@ -98,7 +98,7 @@ object EasyIngestDispatcher {
       syncDelay = props.getInt("sync.delay"),
       ownerId = props.getString("easy.owner"),
       bagStorageLocation = props.getString("storage.base-url"),
-      bagitDir = deposit,
+      bagitDir = findBagitRoot(deposit).get,
       sdoSetDir = new File(props.getString("staging.root-dir"), deposit.getName),
       DOI = "10.1000/xyz123", // TODO: get this from the deposit metadata
       postgresURL = props.getString("fsrdb.connection-url"),
