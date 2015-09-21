@@ -11,11 +11,10 @@ import org.eclipse.jgit.api.Git
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
 
-import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.io.StdIn.readLine
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 case class Settings(depositsDir: File, refreshDelay: Duration)
 
@@ -73,9 +72,7 @@ object EasyIngestDispatcher {
   def dispatchIngestFlow(deposit: File): Try[File] = {
     log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
     for {
-      bagRoot <- findBagitRoot(deposit)
-      settings = getIngestFlowSettings(deposit)
-      _ <- EasyIngestFlow.run()(settings)
+      _ <- EasyIngestFlow.run()(getIngestFlowSettings(deposit))
     } yield deposit
   }
 
@@ -97,8 +94,9 @@ object EasyIngestDispatcher {
       numSyncTries = props.getInt("sync.num-tries"),
       syncDelay = props.getInt("sync.delay"),
       ownerId = props.getString("easy.owner"),
+      datasetAccessBaseUrl = props.getString("easy.dataset-access-base-url"),
       bagStorageLocation = props.getString("storage.base-url"),
-      bagitDir = findBagitRoot(deposit).get,
+      depositDir = deposit,
       sdoSetDir = new File(props.getString("staging.root-dir"), deposit.getName),
       DOI = "10.1000/xyz123", // TODO: get this from the deposit metadata
       postgresURL = props.getString("fsrdb.connection-url"),
@@ -106,19 +104,7 @@ object EasyIngestDispatcher {
       pidgen = props.getString("pid-generator.url"))
   }
 
-  @tailrec
-  private def findBagitRoot(f: File): Try[File] =
-    if (f.isDirectory) {
-      val children = f.listFiles.filter(_.getName != ".git")
-      if (children.length == 1) {
-        findBagitRoot(children.head)
-      } else if (children.length > 1) {
-        Success(f)
-      } else {
-        Failure(new RuntimeException(s"Bagit folder seems to be empty in: ${f.getName}"))
-      }
-    } else {
-      Failure(new RuntimeException(s"Couldn't find bagit folder, instead found: ${f.getName}"))
-    }
-
+  def getBagDir(depositDir: File): Try[File] = Try {
+    depositDir.listFiles.find(f => f.isDirectory && f.getName != ".git").get
+  }
 }
