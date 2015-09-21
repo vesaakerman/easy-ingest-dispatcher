@@ -1,12 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+    <property name="LOGDIR" value="/opt/easy-ingest-dispatcher" />
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <Pattern>[%-5level] %msg %n</Pattern>
         </encoder>
     </appender>
-    <root level="error">
+    <appender name="FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGDIR}/output.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- daily rollover -->
+            <fileNamePattern>${LOGDIR}/output.%d{yyyy-MM-dd}.log</fileNamePattern>
+
+            <!-- keep 30 days' worth of history -->
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%p %d [%t] - %m%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="error" />
+    <logger name="nl.knaw.dans" level="info" >
         <appender-ref ref="CONSOLE" />
-    </root>
-    <logger name="nl.knaw.dans.easy.ingest_dispatcher" level="info" />
+    </logger>
+    <logger name="nl.knaw.dans.easy" level="debug" >
+        <appender-ref ref="FILE" />
+    </logger>
+
 </configuration>
