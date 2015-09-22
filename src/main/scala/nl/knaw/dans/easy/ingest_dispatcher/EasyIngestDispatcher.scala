@@ -1,20 +1,19 @@
 package nl.knaw.dans.easy.ingest_dispatcher
 
-import java.io.File
+import java.io.{File, PrintWriter, StringWriter}
 import java.net.URL
 import java.util.concurrent.TimeUnit
 
 import com.yourmediashelf.fedora.client.FedoraCredentials
-import nl.knaw.dans.easy.ingest_flow.EasyIngestFlow
+import nl.knaw.dans.easy.ingest_flow.{DepositState, EasyIngestFlow}
 import org.apache.commons.configuration.PropertiesConfiguration
-import org.eclipse.jgit.api.Git
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
 
 import scala.concurrent.duration._
 import scala.io.StdIn.readLine
 import scala.language.postfixOps
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 case class Settings(depositsDir: File, refreshDelay: Duration)
 
@@ -63,23 +62,45 @@ object EasyIngestDispatcher {
 
   def dispatchUnprocessedBags(processedBags: List[File])(implicit s: Settings): Try[List[File]] = {
     val bags = s.depositsDir.listFiles().toList
-    bags.diff(processedBags)
+    val newDeposits = bags.diff(processedBags)
       .filter(isDepositReadyForIngest)
+    if(newDeposits.size == 0 && log.isDebugEnabled) log.debug("No new deposits")
+    else log.info(s"Processing ${newDeposits.size} new deposits...")
+    newDeposits
       .map(dispatchIngestFlow)
       .sequence
   }
 
   def dispatchIngestFlow(deposit: File): Try[File] = {
     log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
-    for {
-      _ <- EasyIngestFlow.run()(getIngestFlowSettings(deposit))
-    } yield deposit
+    implicit val s = getIngestFlowSettings(deposit)
+    EasyIngestFlow.run()(s).recoverWith {
+      case t =>
+        log.error("Ingest flow failed", t)
+        val sw = new StringWriter()
+        val pw = new PrintWriter(sw)
+        t.printStackTrace(pw)
+        pw.flush()
+        setDepositStateToFailed(deposit.getName, sw.toString)
+        Failure(t)
+    }
+    Success(deposit)
   }
 
+  def setDepositStateToFailed(depositId: String, error: String)(implicit s: EasyIngestFlow.Settings): Try[Unit] =
+    DepositState.setDepositState("FAILED", error)
+
+
   def isDepositReadyForIngest(deposit: File): Boolean = try {
-    deposit.exists() && deposit.isDirectory && Git.open(deposit).tagList().call().size() == 1
+    deposit.exists() && deposit.isDirectory && depositStateIsSubmitted(deposit)
   } catch {
     case _: Throwable => false
+  }
+
+  def depositStateIsSubmitted(deposit: File): Boolean = {
+    val stateFile = new File(deposit, "state.properties")
+    // If there is no state file, just try to process the deposit (TODO: is this a good solution?)
+    !stateFile.exists || new PropertiesConfiguration(stateFile).getString("state") == "SUBMITTED"
   }
 
   def getIngestFlowSettings(deposit: File): EasyIngestFlow.Settings = {
