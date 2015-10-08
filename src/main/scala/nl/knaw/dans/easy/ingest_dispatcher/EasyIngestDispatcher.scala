@@ -92,15 +92,14 @@ object EasyIngestDispatcher {
 
 
   def isDepositReadyForIngest(deposit: File): Boolean = try {
-    deposit.exists() && deposit.isDirectory && depositStateIsSubmitted(deposit)
+    deposit.exists && deposit.isDirectory && depositStateIsSubmitted(deposit)
   } catch {
     case _: Throwable => false
   }
 
   def depositStateIsSubmitted(deposit: File): Boolean = {
-    val stateFile = new File(deposit, "state.properties")
-    // If there is no state file, just try to process the deposit (TODO: is this a good solution?)
-    !stateFile.exists || new PropertiesConfiguration(stateFile).getString("state") == "SUBMITTED"
+    val stateFile = new File(deposit, "deposit.properties")
+    stateFile.isFile && new PropertiesConfiguration(stateFile).getString("state.label") == "SUBMITTED"
   }
 
   def getIngestFlowSettings(deposit: File): EasyIngestFlow.Settings = {
@@ -114,7 +113,7 @@ object EasyIngestDispatcher {
         props.getString("fcrepo.password")),
       numSyncTries = props.getInt("sync.num-tries"),
       syncDelay = props.getInt("sync.delay"),
-      ownerId = props.getString("easy.owner"),
+      ownerId = getUserId(deposit),
       datasetAccessBaseUrl = props.getString("easy.dataset-access-base-url"),
       bagStorageLocation = props.getString("storage.base-url"),
       depositDir = deposit,
@@ -125,7 +124,6 @@ object EasyIngestDispatcher {
       pidgen = props.getString("pid-generator.url"))
   }
 
-  def getBagDir(depositDir: File): Try[File] = Try {
-    depositDir.listFiles.find(f => f.isDirectory && f.getName != ".git").get
-  }
+  def getUserId(depositDir: File): String = new PropertiesConfiguration(new File(depositDir, "deposit.properties")).getString("depositor.userId")
+
 }
