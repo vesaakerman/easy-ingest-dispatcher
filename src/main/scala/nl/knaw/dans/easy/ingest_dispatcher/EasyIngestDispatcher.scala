@@ -20,7 +20,7 @@ case class Settings(depositsDir: File, refreshDelay: Duration)
 object EasyIngestDispatcher {
   val log = LoggerFactory.getLogger(getClass)
 
-  val homeDir = new File(System.getenv("EASY_INGEST_DISPATCHER_HOME"))
+  val homeDir = new File(System.getProperty("app.home"))
   val props = new PropertiesConfiguration(new File(homeDir, "cfg/application.properties"))
 
   private var stopTriggered = false
@@ -118,7 +118,7 @@ object EasyIngestDispatcher {
       bagStorageLocation = props.getString("storage.base-url"),
       depositDir = deposit,
       sdoSetDir = new File(props.getString("staging.root-dir"), deposit.getName),
-      DOI = "10.1000/xyz123", // TODO: get this from the deposit metadata
+      dansNamespacePart = "/dans-",
       postgresURL = props.getString("fsrdb.connection-url"),
       solr = props.getString("solr.update-url"),
       pidgen = props.getString("pid-generator.url"))
