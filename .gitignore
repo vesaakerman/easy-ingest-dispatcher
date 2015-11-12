@@ -12,13 +12,9 @@ buildNumber.properties
 *.iml
 .idea/
 .DS_Store
+apphome.sh
 home/
 out/
-data/
-temp/
-cfg/
-staging/
-
 
 # Eclipse
 /.project
