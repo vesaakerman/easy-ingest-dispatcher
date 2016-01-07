@@ -128,6 +128,8 @@ object EasyIngestDispatcher {
         props.getString("fcrepo.password")),
       numSyncTries = props.getInt("sync.num-tries"),
       syncDelay = props.getInt("sync.delay"),
+      checkInterval = props.getInt("check.interval"),
+      maxCheckCount = props.getInt("max.check.count"),
       ownerId = getUserId(deposit),
       datasetAccessBaseUrl = props.getString("easy.dataset-access-base-url"),
       bagStorageLocation = props.getString("storage.base-url"),
