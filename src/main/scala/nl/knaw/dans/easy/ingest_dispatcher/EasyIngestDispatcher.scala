@@ -132,10 +132,8 @@ object EasyIngestDispatcher {
       maxCheckCount = props.getInt("max.check.count"),
       ownerId = getUserId(deposit),
       datasetAccessBaseUrl = props.getString("easy.dataset-access-base-url"),
-      bagStorageLocation = props.getString("storage.base-url"),
       depositDir = deposit,
       sdoSetDir = new File(props.getString("staging.root-dir"), deposit.getName),
-      dansNamespacePart = "/dans-",
       postgresURL = props.getString("fsrdb.connection-url"),
       solr = props.getString("solr.update-url"),
       pidgen = props.getString("pid-generator.url"))
