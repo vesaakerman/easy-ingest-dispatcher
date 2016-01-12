@@ -26,7 +26,7 @@
     <groupId>nl.knaw.dans.easy</groupId>
     <artifactId>easy-ingest-dispatcher</artifactId>
     <name>EASY Ingest Dispatcher</name>
-    <version>1.x-SNAPSHOT</version>
+    <version>1.0</version>
     <inceptionYear>2015-2016</inceptionYear>
     <properties>
         <main-class>nl.knaw.dans.easy.ingest_dispatcher.EasyIngestDispatcher</main-class>
@@ -59,7 +59,7 @@
         <dependency>
             <groupId>nl.knaw.dans.easy</groupId>
             <artifactId>easy-ingest-flow</artifactId>
-            <version>1.x-SNAPSHOT</version>
+            <version>1.0</version>
         </dependency>
         <dependency>
             <groupId>io.reactivex</groupId>
