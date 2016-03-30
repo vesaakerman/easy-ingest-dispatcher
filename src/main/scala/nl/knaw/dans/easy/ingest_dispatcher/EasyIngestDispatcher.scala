@@ -20,7 +20,7 @@ import java.net.URL
 import java.util.concurrent.TimeUnit
 
 import com.yourmediashelf.fedora.client.FedoraCredentials
-import nl.knaw.dans.easy.ingest_flow.{DepositState, EasyIngestFlow}
+import nl.knaw.dans.easy.ingest_flow.{EasyIngestFlow, setDepositState, Settings => IngestFlowSettings}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
@@ -89,7 +89,7 @@ object EasyIngestDispatcher {
   def dispatchIngestFlow(deposit: File): Try[File] = {
     log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
     implicit val s = getIngestFlowSettings(deposit)
-    EasyIngestFlow.run()(s).recoverWith {
+    EasyIngestFlow.run.recoverWith {
       case t =>
         log.error("Ingest flow failed", t)
         val sw = new StringWriter()
@@ -102,8 +102,8 @@ object EasyIngestDispatcher {
     Success(deposit)
   }
 
-  def setDepositStateToFailed(depositId: String, error: String)(implicit s: EasyIngestFlow.Settings): Try[Unit] =
-    DepositState.setDepositState("FAILED", error)
+  def setDepositStateToFailed(depositId: String, error: String)(implicit s: IngestFlowSettings): Try[Unit] =
+    setDepositState("FAILED", error)
 
 
   def isDepositReadyForIngest(deposit: File): Boolean = try {
@@ -117,8 +117,8 @@ object EasyIngestDispatcher {
     stateFile.isFile && new PropertiesConfiguration(stateFile).getString("state.label") == "SUBMITTED"
   }
 
-  def getIngestFlowSettings(deposit: File): EasyIngestFlow.Settings = {
-    EasyIngestFlow.Settings(
+  def getIngestFlowSettings(deposit: File): IngestFlowSettings = {
+    IngestFlowSettings(
       storageUser = props.getString("storage.user"),
       storagePassword = props.getString("storage.password"),
       storageServiceUrl = new URL(props.getString("storage.service-url")),
