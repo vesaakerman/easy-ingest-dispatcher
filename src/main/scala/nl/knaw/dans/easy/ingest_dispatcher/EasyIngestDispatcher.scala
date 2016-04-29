@@ -26,7 +26,6 @@ import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
 
 import scala.concurrent.duration._
-import scala.io.StdIn.readLine
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
@@ -38,10 +37,12 @@ object EasyIngestDispatcher {
   val homeDir = new File(System.getProperty("app.home"))
   val props = new PropertiesConfiguration(new File(homeDir, "cfg/application.properties"))
 
-  private var stopTriggered = false
+  var stopTriggered = false
   private var safeToTerminate = false
 
-  def main(args: Array[String]) {
+  def main(args: Array[String]): Unit = run()
+
+  def run() {
     implicit val s = Settings(
       depositsDir = new File(props.getString("deposits-dir")),
       refreshDelay = Duration(props.getInt("refresh-delay"), TimeUnit.MILLISECONDS))
@@ -55,14 +56,6 @@ object EasyIngestDispatcher {
       .subscribe(depositId => log.info(s"Finished processing deposit $depositId"))
 
     log.info(s"Started monitoring deposits in: ${s.depositsDir.getPath}")
-    readLine()
-    log.info("Stopping monitoring stream, waiting for all jobs to finish")
-
-    stopTriggered = true
-
-    while (!safeToTerminate) {
-      Thread.sleep(s.refreshDelay.toMillis)
-    }
   }
 
   def jobMonitoringStream(implicit s: Settings): Observable[String] = {
