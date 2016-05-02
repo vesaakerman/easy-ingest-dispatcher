@@ -40,13 +40,7 @@ object EasyIngestDispatcher {
   var stopTriggered = false
   private var safeToTerminate = false
 
-  def main(args: Array[String]): Unit = run()
-
-  def run() {
-    implicit val s = Settings(
-      depositsDir = new File(props.getString("deposits-dir")),
-      refreshDelay = Duration(props.getInt("refresh-delay"), TimeUnit.MILLISECONDS))
-
+  def run()(implicit s: Settings) {
     jobMonitoringStream
       .doOnError(e => log.error("Error while running ingest-flow", e))
       .retry
@@ -56,6 +50,13 @@ object EasyIngestDispatcher {
       .subscribe(depositId => log.info(s"Finished processing deposit $depositId"))
 
     log.info(s"Started monitoring deposits in: ${s.depositsDir.getPath}")
+  }
+
+  def waitForQueue()(implicit s: Settings): Unit = {
+    log.info("Processing remaining queue items before terminating ...")
+    while (!safeToTerminate)
+      Thread.sleep(s.refreshDelay.toMillis)
+    log.info("Queue empty. Shutting down ...")
   }
 
   def jobMonitoringStream(implicit s: Settings): Observable[String] = {
@@ -72,8 +73,8 @@ object EasyIngestDispatcher {
     val bags = s.depositsDir.listFiles().toList
     val newDeposits = bags.diff(processedBags)
       .filter(isDepositReadyForIngest)
-    if(newDeposits.size == 0 && log.isDebugEnabled) log.debug("No new deposits")
-    else log.info(s"Processing ${newDeposits.size} new deposits...")
+    if(newDeposits.size > 0) log.info(s"Processing ${newDeposits.size} new deposits ...")
+    else log.debug("No new deposits ...")
     newDeposits
       .map(dispatchIngestFlow)
       .sequence

@@ -15,24 +15,38 @@
  */
 package nl.knaw.dans.easy.ingest_dispatcher
 
+import java.io.File
+import java.util.concurrent.TimeUnit
+
 import org.apache.commons.daemon.{Daemon, DaemonContext}
+import org.slf4j.LoggerFactory
+
+import scala.concurrent.duration.Duration
 
 class ServiceStarter extends Daemon {
+  val log = LoggerFactory.getLogger(getClass)
+
+  implicit val s = Settings(
+    depositsDir = new File(EasyIngestDispatcher.props.getString("deposits-dir")),
+    refreshDelay = Duration(EasyIngestDispatcher.props.getInt("refresh-delay"), TimeUnit.MILLISECONDS))
 
   def init(ctx: DaemonContext): Unit = {
-
+    log.info("Initializing service ...")
   }
 
   def start(): Unit = {
-      EasyIngestDispatcher.run()
+    log.info("Starting service ...")
+    EasyIngestDispatcher.run()
   }
 
   def stop(): Unit = {
-      EasyIngestDispatcher.stopTriggered = true
+    log.info("Stopping service ...")
+    EasyIngestDispatcher.stopTriggered = true
   }
 
   def destroy(): Unit = {
-
+    EasyIngestDispatcher.waitForQueue()
+    log.info("Service stopped.")
   }
 
 }

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <property name="LOGDIR" value="/var/log/easy-ingest-dispatcher" />
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <Pattern>%-5level %date{ISO8601} [%thread] - %msg%n</Pattern>
+        </encoder>
+    </appender>
     <appender name="FILE"
               class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOGDIR}/easy-ingest-dispatcher.log</file>
@@ -9,11 +14,12 @@
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <encoder>
-            <pattern>%p %d [%t] - %m%n</pattern>
+            <pattern>%-5level %date{ISO8601} [%thread] - %msg%n</pattern>
         </encoder>
     </appender>
     <root level="error" />
     <logger name="nl.knaw.dans.easy" level="debug" >
+        <appender-ref ref="CONSOLE" />
         <appender-ref ref="FILE" />
     </logger>
 </configuration>
