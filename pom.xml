@@ -21,7 +21,7 @@
     <parent>
         <groupId>nl.knaw.dans.shared</groupId>
         <artifactId>dans-scala-prototype</artifactId>
-        <version>1.24</version>
+        <version>1.25</version>
     </parent>
     <groupId>nl.knaw.dans.easy</groupId>
     <artifactId>easy-ingest-dispatcher</artifactId>
@@ -72,6 +72,10 @@
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_2.11</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-daemon</groupId>
+            <artifactId>commons-daemon</artifactId>
         </dependency>
     </dependencies>
     <repositories>

@@ -1,8 +1,66 @@
 #!/usr/bin/env bash
+#  /etc/init.d/easy-ingest-dispatcher
+# chkconfig: 2345 90 60
 
-BINPATH=`readlink -f $0`
-APPHOME=`dirname \`dirname $BINPATH \``
+### BEGIN INIT INFO
+# Provides:          easy-ingest-dispatcher
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Short-Description: Starts the easy-ingest-dispatcher service
+# Description:       This file is used to start the daemon
+#                    and should be placed in /etc/init.d
+### END INIT INFO
 
-java -Dlogback.configurationFile=$APPHOME/cfg/logback.xml \
-     -Dapp.home=$APPHOME \
-     -jar $APPHOME/bin/easy-ingest-dispatcher.jar $@
+NAME="easy-ingest-dispatcher"
+EXEC="/usr/bin/jsvc"
+APPHOME="/opt/easy-ingest-dispatcher"
+JAVA_HOME="/usr/lib/jvm/jre"
+CLASSPATH="$APPHOME/bin/$NAME.jar:`echo $APPHOME/lib/*.jar | sed 's/ /:/g'`"
+CLASS="nl.knaw.dans.easy.ingest_dispatcher.ServiceStarter"
+ARGS=""
+USER="easy_ingest_dispatcher"
+PID="/var/run/$NAME.pid"
+OUTFILE="/var/log/$NAME/$NAME.out"
+ERRFILE="/var/log/$NAME/$NAME.err"
+
+jsvc_exec()
+{
+    cd $APPHOME
+    $EXEC -home $JAVA_HOME -cp $CLASSPATH -user $USER -outfile $OUTFILE -errfile $ERRFILE -pidfile $PID \
+          -Dapp.home=$APPHOME -Dlogback.configurationFile=$APPHOME/cfg/logback.xml $1 $CLASS $ARGS
+}
+
+case "$1" in
+    start)
+        echo "Starting $NAME ..."
+        jsvc_exec
+        echo "$NAME has started."
+    ;;
+    stop)
+        echo "Stopping $NAME ..."
+        jsvc_exec "-stop"
+        echo "$NAME has stopped."
+    ;;
+    restart)
+        if [ -f "$PID" ]; then
+            echo "Restarting $NAME ..."
+            jsvc_exec "-stop"
+            jsvc_exec
+            echo "$NAME has restarted."
+        else
+            echo "$NAME is not running, no action taken"
+            exit 1
+        fi
+    ;;
+    status)
+        if [ -f "$PID" ]
+        then
+            echo "$NAME (pid `cat $PID`) is running"
+        else
+            echo "$NAME is stopped"
+        fi
+    ;;
+    *)
+    echo "Usage: sudo service $NAME {start|stop|restart|status}" >&2
+    exit 3
+esac
