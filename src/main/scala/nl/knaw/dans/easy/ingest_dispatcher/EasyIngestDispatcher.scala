@@ -17,7 +17,8 @@ package nl.knaw.dans.easy.ingest_dispatcher
 
 import java.io.{File, PrintWriter, StringWriter}
 import java.net.URL
-import java.util.concurrent.TimeUnit
+import javax.naming.Context
+import javax.naming.ldap.InitialLdapContext
 
 import com.yourmediashelf.fedora.client.FedoraCredentials
 import nl.knaw.dans.easy.ingest_flow.{EasyIngestFlow, setDepositState, Settings => IngestFlowSettings}
@@ -35,7 +36,13 @@ object EasyIngestDispatcher {
   val log = LoggerFactory.getLogger(getClass)
 
   val homeDir = new File(System.getProperty("app.home"))
-  val props = new PropertiesConfiguration(new File(homeDir, "cfg/application.properties"))
+  val props = {
+    val ps = new PropertiesConfiguration()
+    ps.setDelimiterParsingDisabled(true)
+    ps.load(new File(homeDir, "cfg/application.properties"))
+
+    ps
+  }
 
   var stopTriggered = false
   private var safeToTerminate = false
@@ -73,7 +80,7 @@ object EasyIngestDispatcher {
     val bags = s.depositsDir.listFiles().toList
     val newDeposits = bags.diff(processedBags)
       .filter(isDepositReadyForIngest)
-    if(newDeposits.size > 0) log.info(s"Processing ${newDeposits.size} new deposits ...")
+    if(newDeposits.nonEmpty) log.info(s"Processing ${newDeposits.size} new deposits ...")
     else log.debug("No new deposits ...")
     newDeposits
       .map(dispatchIngestFlow)
@@ -120,6 +127,18 @@ object EasyIngestDispatcher {
         props.getString("fcrepo.url"),
         props.getString("fcrepo.user"),
         props.getString("fcrepo.password")),
+      ldapContext = {
+        import java.{util => ju}
+
+        val env = new ju.Hashtable[String, String]
+        env.put(Context.PROVIDER_URL, props.getString("auth.ldap.url"))
+        env.put(Context.SECURITY_AUTHENTICATION, "simple")
+        env.put(Context.SECURITY_PRINCIPAL, props.getString("auth.ldap.user"))
+        env.put(Context.SECURITY_CREDENTIALS, props.getString("auth.ldap.password"))
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
+
+        new InitialLdapContext(env, null)
+      },
       numSyncTries = props.getInt("sync.num-tries"),
       syncDelay = props.getInt("sync.delay"),
       checkInterval = props.getInt("check.interval"),
@@ -127,6 +146,7 @@ object EasyIngestDispatcher {
       ownerId = getUserId(deposit),
       datasetAccessBaseUrl = props.getString("easy.dataset-access-base-url"),
       depositDir = deposit,
+      licenseResourceDir = new File(props.getString("license.resources")),
       sdoSetDir = new File(props.getString("staging.root-dir"), deposit.getName),
       postgresURL = props.getString("fsrdb.connection-url"),
       solr = props.getString("solr.update-url"),
@@ -134,5 +154,4 @@ object EasyIngestDispatcher {
   }
 
   def getUserId(depositDir: File): String = new PropertiesConfiguration(new File(depositDir, "deposit.properties")).getString("depositor.userId")
-
 }
