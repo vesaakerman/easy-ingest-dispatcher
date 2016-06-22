@@ -36,7 +36,13 @@ object EasyIngestDispatcher {
   val log = LoggerFactory.getLogger(getClass)
 
   val homeDir = new File(System.getProperty("app.home"))
-  val props = new PropertiesConfiguration(new File(homeDir, "cfg/application.properties"))
+  val props = {
+    val ps = new PropertiesConfiguration()
+    ps.setDelimiterParsingDisabled(true)
+    ps.load(new File(homeDir, "cfg/application.properties"))
+
+    ps
+  }
 
   var stopTriggered = false
   private var safeToTerminate = false
