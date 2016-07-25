@@ -150,7 +150,8 @@ object EasyIngestDispatcher {
       sdoSetDir = new File(props.getString("staging.root-dir"), deposit.getName),
       postgresURL = props.getString("fsrdb.connection-url"),
       solr = props.getString("solr.update-url"),
-      pidgen = props.getString("pid-generator.url"))
+      pidgen = props.getString("pid-generator.url"),
+      virusscanCmd = props.getString("virusscan.cmd"))
   }
 
   def getUserId(depositDir: File): String = new PropertiesConfiguration(new File(depositDir, "deposit.properties")).getString("depositor.userId")
