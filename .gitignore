@@ -15,6 +15,7 @@ buildNumber.properties
 apphome.sh
 home/
 out/
+*.sc
 
 # Eclipse
 /.project
