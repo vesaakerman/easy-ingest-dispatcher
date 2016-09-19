@@ -22,6 +22,7 @@ import javax.naming.ldap.InitialLdapContext
 
 import com.yourmediashelf.fedora.client.FedoraCredentials
 import nl.knaw.dans.easy.ingest_flow.{EasyIngestFlow, setDepositState, Settings => IngestFlowSettings}
+import nl.knaw.dans.lib.error._
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
@@ -84,7 +85,7 @@ object EasyIngestDispatcher {
     else log.debug("No new deposits ...")
     newDeposits
       .map(dispatchIngestFlow)
-      .sequence
+      .collectResults
   }
 
   def dispatchIngestFlow(deposit: File): Try[File] = {
