@@ -16,19 +16,30 @@
 package nl.knaw.dans.easy.ingest_dispatcher
 
 import java.io.File
-import java.util.concurrent.TimeUnit
 
+import com.hazelcast.Scala.client._
+import com.hazelcast.Scala.serialization
+import com.hazelcast.client.config.ClientConfig
+import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.commons.daemon.{Daemon, DaemonContext}
 import org.slf4j.LoggerFactory
-
-import scala.concurrent.duration.Duration
 
 class ServiceStarter extends Daemon {
   val log = LoggerFactory.getLogger(getClass)
 
-  implicit val s = Settings(
-    depositsDir = new File(EasyIngestDispatcher.props.getString("deposits-dir")),
-    refreshDelay = Duration(EasyIngestDispatcher.props.getInt("refresh-delay"), TimeUnit.MILLISECONDS))
+  implicit val properties = {
+    val ps = new PropertiesConfiguration()
+    ps.setDelimiterParsingDisabled(true)
+    ps.load(new File(System.getProperty("app.home"), "cfg/application.properties"))
+
+    ps
+  }
+  implicit val hazelcast = {
+    val hzConf = new ClientConfig()
+    serialization.Defaults.register(hzConf.getSerializationConfig)
+    hzConf.newClient()
+  }
+  val dispatcher = new EasyIngestDispatcher
 
   def init(ctx: DaemonContext): Unit = {
     log.info("Initializing service ...")
@@ -36,17 +47,17 @@ class ServiceStarter extends Daemon {
 
   def start(): Unit = {
     log.info("Starting service ...")
-    EasyIngestDispatcher.run()
+    dispatcher.run.subscribe()
   }
 
   def stop(): Unit = {
     log.info("Stopping service ...")
-    EasyIngestDispatcher.stopTriggered = true
+    dispatcher.stop()
   }
 
   def destroy(): Unit = {
-    EasyIngestDispatcher.waitForQueue()
+    dispatcher.awaitTermination()
+    hazelcast.shutdown()
     log.info("Service stopped.")
   }
-
 }

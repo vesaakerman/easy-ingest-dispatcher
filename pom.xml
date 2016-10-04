@@ -77,6 +77,24 @@
             <groupId>nl.knaw.dans.lib</groupId>
             <artifactId>dans-scala-lib</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast</artifactId>
+        </dependency>
+        <dependency> <!-- TODO maybe we don't need this dependency -->
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast</artifactId>
+            <classifier>tests</classifier>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast-scala_2.11</artifactId>
+        </dependency>
     </dependencies>
     <repositories>
         <repository>
