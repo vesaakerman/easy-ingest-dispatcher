@@ -36,6 +36,13 @@
         <tag>HEAD</tag>
     </scm>
     <dependencies>
+        <!-- BEGIN EASY MODULES -->
+        <dependency>
+            <groupId>nl.knaw.dans.easy</groupId>
+            <artifactId>easy-ingest-flow</artifactId>
+            <version>1.2-beta-2</version>
+        </dependency>
+        <!-- END EASY MODULES -->
         <dependency>
             <groupId>org.scala-lang.modules</groupId>
             <artifactId>scala-xml_2.11</artifactId>
@@ -55,11 +62,6 @@
         <dependency>
             <groupId>commons-configuration</groupId>
             <artifactId>commons-configuration</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>nl.knaw.dans.easy</groupId>
-            <artifactId>easy-ingest-flow</artifactId>
-            <version>1.x-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.reactivex</groupId>
