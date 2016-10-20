@@ -31,7 +31,7 @@ import rx.lang.scala.Observable
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Failure, Try}
+import scala.util.Try
 
 class EasyIngestDispatcher(implicit props: PropertiesConfiguration, hazelcast: HazelcastInstance) {
   val log = LoggerFactory.getLogger(getClass)
@@ -76,41 +76,28 @@ class EasyIngestDispatcher(implicit props: PropertiesConfiguration, hazelcast: H
       .onBackpressureDrop
       .takeWhile(_ => running.get())
       .sample(refreshDelay)
-      .scan(initProcessedDeposits)((processedDeposits, _) => processedDeposits ++ dispatchUnprocessedDeposits(processedDeposits))
-      .flatMapIterable(_.map(_.getName))
-      .distinct
-  }
-
-  def initProcessedDeposits: List[Deposit] = {
-    depositsDir.listFiles().filterNot(isDepositReadyForIngest).toList
-  }
-
-  def dispatchUnprocessedDeposits(processedDeposits: List[Deposit]): List[Deposit] = {
-    val deposits = depositsDir.listFiles().toList
-    val newDeposits = deposits.diff(processedDeposits)
+      .flatMapIterable(_ => depositsDir.listFiles())
+      .distinct(_.getName)
       .filter(isDepositReadyForIngest)
-    if(newDeposits.nonEmpty) log.info(s"Processing ${newDeposits.size} new deposits ...")
-    else log.debug("No new deposits ...")
-
-    newDeposits.foreach(dispatchIngestFlow)
-    newDeposits
+      .flatMap(dispatchToIngestFlow)
   }
 
-  def dispatchIngestFlow(deposit: Deposit): Unit = {
-    log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
-    implicit val s = getIngestFlowSettings(deposit)
+  def dispatchToIngestFlow(deposit: Deposit): Observable[String] = {
+    Observable.defer {
+      implicit val settings = getIngestFlowSettings(deposit)
 
-    // TODO candidate for Try.onError in dans-scala-lib rather than this Try.recoverWith
-    // TODO dirty solution with toBlocking, but can't think of anything that works fine in the context of the jobMonitoringStream :(
-    Try(EasyIngestFlow.run.toBlocking.toList.head).recoverWith {
-      case t =>
-        log.error("Ingest flow failed", t)
-        val sw = new StringWriter()
-        val pw = new PrintWriter(sw)
-        t.printStackTrace(pw)
-        pw.flush()
-        setDepositStateToFailed(sw.toString)
-        Failure(t)
+      EasyIngestFlow.run
+        .doOnSubscribe {
+          log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
+        }
+        .doOnError(t => {
+          log.error("Ingest flow failed", t)
+          val sw = new StringWriter()
+          val pw = new PrintWriter(sw)
+          t.printStackTrace(pw)
+          pw.flush()
+          setDepositStateToFailed(sw.toString)
+        })
     }
   }
 
