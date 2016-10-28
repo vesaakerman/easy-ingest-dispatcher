@@ -17,47 +17,50 @@ package nl.knaw.dans.easy.ingest_dispatcher
 
 import java.io.File
 
-import com.hazelcast.Scala.client._
-import com.hazelcast.Scala.serialization
-import com.hazelcast.client.config.ClientConfig
+import nl.knaw.dans.easy.ingest_flow.{Hazelcast, PidGeneratorMode, Rest}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.commons.daemon.{Daemon, DaemonContext}
-import org.slf4j.LoggerFactory
+import org.slf4j.{Logger, LoggerFactory}
 
 class ServiceStarter extends Daemon {
-  val log = LoggerFactory.getLogger(getClass)
+  var log: Logger = _
+  var service: Service = _
 
-  implicit val properties = {
+  private def getProperties = {
     val ps = new PropertiesConfiguration()
     ps.setDelimiterParsingDisabled(true)
     ps.load(new File(System.getProperty("app.home"), "cfg/application.properties"))
 
     ps
   }
-  implicit val hazelcast = {
-    val hzConf = new ClientConfig()
-    serialization.Defaults.register(hzConf.getSerializationConfig)
-    hzConf.newClient()
-  }
-  val dispatcher = new EasyIngestDispatcher
 
-  def init(ctx: DaemonContext): Unit = {
-    log.info("Initializing service ...")
+  def init(ctx: DaemonContext) = {
+    log = LoggerFactory.getLogger(getClass)
+
+    log.info("Initializing service...")
+
+    implicit val properties = getProperties
+    service = PidGeneratorMode.getMode(properties.getString("microservice.pid-generator.mode")) match {
+      case Rest => new RestService
+      case Hazelcast => new HazelcastService
+    }
+
+    log.info("Service initialized.")
   }
 
   def start(): Unit = {
-    log.info("Starting service ...")
-    dispatcher.run.subscribe()
+    log.info("Starting service...")
+    service.start()
+    log.info("Service started.")
   }
 
   def stop(): Unit = {
-    log.info("Stopping service ...")
-    dispatcher.stop()
+    log.info("Stopping service...")
+    service.stop()
   }
 
   def destroy(): Unit = {
-    dispatcher.awaitTermination()
-    hazelcast.shutdown()
+    service.destroy()
     log.info("Service stopped.")
   }
 }

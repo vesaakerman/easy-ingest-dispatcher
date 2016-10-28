@@ -28,9 +28,6 @@
     <name>EASY Ingest Dispatcher</name>
     <version>1.x-SNAPSHOT</version>
     <inceptionYear>2015-2016</inceptionYear>
-    <properties>
-        <main-class>nl.knaw.dans.easy.ingest_dispatcher.EasyIngestDispatcher</main-class>
-    </properties>
     <scm>
         <developerConnection>scm:git:https://github.com/DANS-KNAW/${project.artifactId}</developerConnection>
         <tag>HEAD</tag>

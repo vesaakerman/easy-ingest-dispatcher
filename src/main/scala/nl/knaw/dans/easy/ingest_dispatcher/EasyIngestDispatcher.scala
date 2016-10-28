@@ -24,7 +24,7 @@ import javax.naming.ldap.InitialLdapContext
 
 import com.hazelcast.core.HazelcastInstance
 import com.yourmediashelf.fedora.client.FedoraCredentials
-import nl.knaw.dans.easy.ingest_flow.{EasyIngestFlow, Hazelcast, MicroserviceSettings, Rest, setDepositState, Settings => IngestFlowSettings}
+import nl.knaw.dans.easy.ingest_flow.{EasyIngestFlow, MicroserviceSettings, PidGeneratorMode, setDepositState, Settings => IngestFlowSettings}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
@@ -33,7 +33,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.Try
 
-class EasyIngestDispatcher(implicit props: PropertiesConfiguration, hazelcast: HazelcastInstance) {
+abstract class EasyIngestDispatcher(implicit props: PropertiesConfiguration) {
   val log = LoggerFactory.getLogger(getClass)
   val depositsDir = {
     val dirLocation = props.getString("deposits-dir")
@@ -82,11 +82,20 @@ class EasyIngestDispatcher(implicit props: PropertiesConfiguration, hazelcast: H
       .flatMap(dispatchToIngestFlow)
   }
 
+  /**
+   * Ingests a deposit with the given `IngestFlowSettings`. The implementation calls a function from
+   * EasyIngestFlow.
+   *
+   * @param settings the settings of the deposit to be ingested
+   * @return a stream containing that emits the `datasetID` whenever it is finished the ingest procedure
+   */
+  def ingestDeposit(implicit settings: IngestFlowSettings): Observable[String]
+
   def dispatchToIngestFlow(deposit: Deposit): Observable[String] = {
     Observable.defer {
       implicit val settings = getIngestFlowSettings(deposit)
 
-      EasyIngestFlow.run
+      ingestDeposit
         .doOnSubscribe {
           log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
         }
@@ -98,6 +107,7 @@ class EasyIngestDispatcher(implicit props: PropertiesConfiguration, hazelcast: H
           pw.flush()
           setDepositStateToFailed(sw.toString)
         })
+        .onErrorResumeNext(_ => Observable.empty) // consume and discard error
     }
   }
 
@@ -116,13 +126,6 @@ class EasyIngestDispatcher(implicit props: PropertiesConfiguration, hazelcast: H
   }
 
   def getIngestFlowSettings(deposit: Deposit): IngestFlowSettings = {
-    def getMode(mode: String) = {
-      mode match {
-        case "rest" => Rest
-        case "hazelcast" => Hazelcast
-      }
-    }
-
     IngestFlowSettings(
       storageUser = props.getString("storage.user"),
       storagePassword = props.getString("storage.password"),
@@ -160,8 +163,8 @@ class EasyIngestDispatcher(implicit props: PropertiesConfiguration, hazelcast: H
       microserviceSettings = MicroserviceSettings(
         ingestflowResponseMapName = props.getString("microservice.ingest-flow.response-map"),
         pidGeneratorInboxName = props.getString("microservice.pid-generator.inbox"),
-        pidGeneratorMode = getMode(props.getString("microservice.pid-generator.mode")
-      )))
+        pidGeneratorMode = PidGeneratorMode.getMode(props.getString("microservice.pid-generator.mode"))
+      ))
   }
 
   def getUserId(deposit: Deposit): String = {
@@ -170,4 +173,12 @@ class EasyIngestDispatcher(implicit props: PropertiesConfiguration, hazelcast: H
     ps.load(new File(deposit, "deposit.properties"))
     ps.getString("depositor.userId")
   }
+}
+
+class RestIngestDispatcher(implicit props: PropertiesConfiguration) extends EasyIngestDispatcher {
+  def ingestDeposit(implicit settings: IngestFlowSettings) = EasyIngestFlow.runWithRest
+}
+
+class HazelcastIngestDispatcher(implicit props: PropertiesConfiguration, hz: HazelcastInstance) extends EasyIngestDispatcher {
+  def ingestDeposit(implicit settings: IngestFlowSettings) = EasyIngestFlow.runWithHazelcast
 }
