@@ -150,7 +150,7 @@ abstract class EasyIngestDispatcher(implicit props: PropertiesConfiguration) {
       syncDelay = props.getInt("sync.delay"),
       checkInterval = props.getInt("check.interval"),
       maxCheckCount = props.getInt("max.check.count"),
-      ownerId = getUserId(deposit),
+      depositorId = getUserId(deposit),
       customDatasetLicenseText = props.getString("custom-dataset-license-text"),
       datasetAccessBaseUrl = props.getString("easy.dataset-access-base-url"),
       depositDir = deposit,
