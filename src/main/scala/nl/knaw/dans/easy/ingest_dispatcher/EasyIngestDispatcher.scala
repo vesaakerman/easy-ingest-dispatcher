@@ -26,6 +26,7 @@ import com.hazelcast.core.HazelcastInstance
 import com.yourmediashelf.fedora.client.FedoraCredentials
 import nl.knaw.dans.easy.ingest_flow.{EasyIngestFlow, MicroserviceSettings, PidGeneratorMode, setDepositState, Settings => IngestFlowSettings}
 import nl.knaw.dans.easy.ingest_flow.State._
+import nl.knaw.dans.easy.ingest_flow.RejectedDepositException
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.slf4j.LoggerFactory
 import rx.lang.scala.Observable
@@ -107,14 +108,10 @@ abstract class EasyIngestDispatcher(implicit props: PropertiesConfiguration) {
 
   private def propagateError(exception: Throwable)(implicit settings: IngestFlowSettings) = {
     log.error("Ingest flow failed", exception)
-    if (!depositStateIsRejected)
-      // do not overwrite REJECTED state
-      setDepositState(FAILED.toString, "Unexpected failure in deposit")
-  }
-
-  private def depositStateIsRejected(implicit settings: IngestFlowSettings): Boolean = {
-    val stateFile = new File(settings.depositDir, "deposit.properties")
-    stateFile.isFile && new PropertiesConfiguration(stateFile).getString("state.label") == REJECTED.toString
+    exception match {
+      case RejectedDepositException(msg, cause) => setDepositState(REJECTED.toString, msg)
+      case e => setDepositState(FAILED.toString, "Unexpected failure in deposit")
+    }
   }
 
   def isDepositReadyForIngest(deposit: Deposit): Boolean = {

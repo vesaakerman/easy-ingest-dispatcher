@@ -15,8 +15,6 @@
  */
 package nl.knaw.dans.easy.ingest_dispatcher
 
-import nl.knaw.dans.easy.ingest_flow.State._
-
 /**
  * Created by vesa on 11/15/16.
  */
