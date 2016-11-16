@@ -34,6 +34,7 @@ import rx.lang.scala.Observable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.Try
+import scala.util.control.NonFatal
 
 abstract class EasyIngestDispatcher(implicit props: PropertiesConfiguration) {
   val log = LoggerFactory.getLogger(getClass)
@@ -117,7 +118,12 @@ abstract class EasyIngestDispatcher(implicit props: PropertiesConfiguration) {
   def isDepositReadyForIngest(deposit: Deposit): Boolean = {
     Try {
       deposit.exists && deposit.isDirectory && depositStateIsSubmitted(deposit)
-    }.getOrElse(false)
+    }.recover {
+      // TODO: replace with doOnFailure (see https://github.com/DANS-KNAW/easy-ingest-dispatcher/pull/39#issuecomment-259987645)
+      case NonFatal(t) =>
+        log.warn(s"Could not determine if deposit is ready for ingest (assuming false): $deposit", t)
+        false
+    }.get
   }
 
   def depositStateIsSubmitted(deposit: Deposit): Boolean = {
