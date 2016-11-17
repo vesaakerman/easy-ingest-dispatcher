@@ -102,7 +102,7 @@ abstract class EasyIngestDispatcher(implicit props: PropertiesConfiguration) {
         .doOnSubscribe {
           log.info(s"Dispatching ingest-flow for: ${deposit.getName}")
         }
-        .doOnError(t => propagateError(t))
+        .doOnError(propagateError(_))
         .onErrorResumeNext(_ => Observable.empty) // consume and discard error
     }
   }
