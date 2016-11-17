@@ -110,8 +110,8 @@ abstract class EasyIngestDispatcher(implicit props: PropertiesConfiguration) {
   private def propagateError(exception: Throwable)(implicit settings: IngestFlowSettings) = {
     log.error("Ingest flow failed", exception)
     exception match {
-      case RejectedDepositException(msg, cause) => setDepositState(REJECTED.toString, msg)
-      case e => setDepositState(FAILED.toString, "Unexpected failure in deposit")
+      case RejectedDepositException(msg, cause) => setDepositState(REJECTED, msg)
+      case e => setDepositState(FAILED, "Unexpected failure in deposit")
     }
   }
 
